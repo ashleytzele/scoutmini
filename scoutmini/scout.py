@@ -237,7 +237,7 @@ def answer(
             )
         a = f1_data.get_driver_season(routed.subjects[0], config.season, fetch_json=fetch_json)
         b = f1_data.get_driver_season(routed.subjects[1], config.season, fetch_json=fetch_json)
-        sources = a.source_urls + b.source_urls
+        sources = list(dict.fromkeys(a.source_urls + b.source_urls))  # dedup, keep order
         body = _generate(question, format_head_to_head(a, b), sources,
                          config, client, analyze_fn)
         return Report(question, routed.intent, body, sources)

@@ -167,6 +167,8 @@ def test_answer_head_to_head_end_to_end(fixture):
     assert "Leclerc" in captured["data_text"] and "Norris" in captured["data_text"]
     # both drivers' source URLs are carried through
     assert len(report.sources) >= 2
+    # the shared standings URL is not listed twice
+    assert len(report.sources) == len(set(report.sources))
 
 
 def test_answer_head_to_head_needs_two_drivers(fixture):
