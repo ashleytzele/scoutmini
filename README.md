@@ -31,14 +31,18 @@ python -m scoutmini driver Norris
 
 ## What works today (v1, in progress)
 
-- **Driver form** — `python -m scoutmini ask "How is Norris doing this season?"`
-  fetches the driver's full season from the Jolpica-F1 API (results + standing),
-  and the LLM writes a short report citing only those numbers.
-- Friendly errors for a missing API key, an unknown driver, or a not-yet-supported
-  question type.
+Three question types, each fetching real data from the Jolpica-F1 API and having
+the LLM write a short report that cites only those numbers:
 
-Head-to-head, race analysis, standings, news sources, and FastF1 deep data are the
-next steps (see the [design spec](docs/superpowers/specs/2026-06-27-scout-design.md)).
+- **Driver form** — `python -m scoutmini ask "How is Norris doing this season?"`
+- **Standings** — `python -m scoutmini ask "Show the driver standings"`
+- **Head-to-head** — `python -m scoutmini ask "Leclerc vs Norris this year"`
+
+Plus friendly errors for a missing API key, an unknown driver, or a not-yet-supported
+question type.
+
+Race analysis, news sources, and FastF1 deep data are the next steps (see the
+[design spec](docs/superpowers/specs/2026-06-27-scout-design.md)).
 
 ## Development
 

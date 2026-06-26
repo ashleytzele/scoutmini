@@ -115,6 +115,52 @@ def format_driver_season(season: f1_data.DriverSeason) -> str:
     return "\n".join(lines)
 
 
+def format_standings(standings: f1_data.Standings) -> str:
+    """Render the championship table as a compact fact block for the LLM."""
+    lines = [f"Driver championship standings — {standings.season} season:"]
+    lines.append("(position | driver | points | wins | team)")
+    for s in standings.drivers:
+        lines.append(
+            f"  P{s.position:>2} | {s.full_name} | {s.points:g} pts | "
+            f"{s.wins} wins | {s.constructor}"
+        )
+    return "\n".join(lines)
+
+
+def format_head_to_head(a: f1_data.DriverSeason, b: f1_data.DriverSeason) -> str:
+    """Render two drivers' seasons side by side as a fact block for the LLM."""
+    season = a.season
+    lines = [
+        f"Head-to-head — {a.driver.full_name} vs {b.driver.full_name}, "
+        f"{season} season:",
+        "",
+    ]
+    for s in (a, b):
+        pos = f"P{s.standing.position}" if s.standing else "n/a"
+        pts = f"{s.standing.points:g}" if s.standing else "n/a"
+        lines.append(
+            f"{s.driver.full_name}: championship {pos}, {pts} pts, "
+            f"{s.wins} wins, {s.podiums} podiums, {len(s.results)} races"
+        )
+    lines.append("")
+    lines.append("Race-by-race finishes (round | race | "
+                 f"{a.driver.code} | {b.driver.code}):")
+    by_round_b = {r.round: r for r in b.results}
+    for ra in a.results:
+        rb = by_round_b.get(ra.round)
+        b_pos = f"P{rb.position}" if rb else "-"
+        lines.append(f"  R{ra.round:>2} | {ra.race_name} | P{ra.position} | {b_pos}")
+    return "\n".join(lines)
+
+
+def _generate(question, data_text, sources, config, client, analyze_fn):
+    if client is None:
+        client = llm.make_client(config)
+    return analyze_fn(
+        question, data_text, "\n".join(sources), model=config.model, client=client
+    )
+
+
 def answer(
     question: str,
     config: Config,
@@ -134,20 +180,31 @@ def answer(
         season = f1_data.get_driver_season(
             subject, config.season, fetch_json=fetch_json
         )
-        data_text = format_driver_season(season)
-        if client is None:
-            client = llm.make_client(config)
-        body = analyze_fn(
-            question,
-            data_text,
-            "\n".join(season.source_urls),
-            model=config.model,
-            client=client,
-        )
+        body = _generate(question, format_driver_season(season), season.source_urls,
+                         config, client, analyze_fn)
         return Report(question, routed.intent, body, season.source_urls)
 
+    if routed.intent is Intent.STANDINGS:
+        standings = f1_data.get_standings(config.season, fetch_json=fetch_json)
+        body = _generate(question, format_standings(standings), standings.source_urls,
+                         config, client, analyze_fn)
+        return Report(question, routed.intent, body, standings.source_urls)
+
+    if routed.intent is Intent.HEAD_TO_HEAD:
+        if len(routed.subjects) < 2:
+            raise UnsupportedQuestion(
+                "Head-to-head needs two drivers, e.g. \"Leclerc vs Norris\"."
+            )
+        a = f1_data.get_driver_season(routed.subjects[0], config.season, fetch_json=fetch_json)
+        b = f1_data.get_driver_season(routed.subjects[1], config.season, fetch_json=fetch_json)
+        sources = a.source_urls + b.source_urls
+        body = _generate(question, format_head_to_head(a, b), sources,
+                         config, client, analyze_fn)
+        return Report(question, routed.intent, body, sources)
+
     raise UnsupportedQuestion(
-        f"That looks like a '{routed.intent.value}' question. v1 of ScoutMini only "
-        "answers driver-form questions so far (e.g. \"How is Norris doing this "
-        "season?\"). Head-to-head, race analysis, and standings are coming next."
+        f"That looks like a '{routed.intent.value}' question. ScoutMini doesn't "
+        "answer race-analysis questions yet — that's the next thing on the list. "
+        "Try driver form (\"How is Norris doing?\"), a head-to-head "
+        "(\"Leclerc vs Norris\"), or standings (\"show the standings\")."
     )

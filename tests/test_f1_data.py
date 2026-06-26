@@ -5,7 +5,9 @@ from scoutmini.f1_data import (
     Driver,
     DriverNotFound,
     DriverSeason,
+    Standings,
     get_driver_season,
+    get_standings,
     match_driver,
     parse_driver_results,
     parse_driver_standings,
@@ -106,6 +108,23 @@ def test_get_driver_season_assembles_clean_object(fixture):
     # golden rule: the exact data sources are recorded for the report
     assert season.source_urls
     assert any("results" in u for u in season.source_urls)
+
+
+def test_get_standings_assembles_clean_object(fixture):
+    standings = get_standings(
+        2024, fetch_json=lambda url: fixture("driver_standings_2024.json")
+    )
+
+    assert isinstance(standings, Standings)
+    assert standings.season == 2024
+    assert len(standings.drivers) == 2
+    assert standings.drivers[0].driver_id == "max_verstappen"
+    assert standings.source_urls
+
+
+def test_get_standings_no_data_raises(fixture):
+    with pytest.raises(DataNotAvailable):
+        get_standings(1066, fetch_json=lambda url: {"MRData": {"StandingsTable": {"StandingsLists": []}}})
 
 
 def test_get_driver_season_unknown_driver_raises(fixture):

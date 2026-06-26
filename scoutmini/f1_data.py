@@ -73,6 +73,13 @@ class RaceResult:
 
 
 @dataclass(frozen=True)
+class Standings:
+    season: int
+    drivers: List[DriverStanding]
+    source_urls: List[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class DriverSeason:
     driver: Driver
     season: int
@@ -247,3 +254,18 @@ def get_driver_season(
         standing=standing,
         source_urls=[results_url, standings_url],
     )
+
+
+def get_standings(
+    season: int,
+    *,
+    fetch_json: FetchJson = _default_fetch_json,
+) -> Standings:
+    """Fetch the driver championship standings for a season."""
+    url = _url_driver_standings(season)
+    drivers = parse_driver_standings(fetch_json(url))
+    if not drivers:
+        raise DataNotAvailable(
+            f"No championship standings available for the {season} season yet."
+        )
+    return Standings(season=season, drivers=drivers, source_urls=[url])
