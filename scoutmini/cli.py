@@ -12,9 +12,10 @@ from __future__ import annotations
 import requests
 import typer
 
-from . import news
-from .config import ConfigError, load_config
-from .f1_data import DataNotAvailable, DriverNotFound
+from . import f1_data, news
+from .config import DEFAULT_SEASON, ConfigError, load_config
+from .f1_data import DataNotAvailable, DriverNotFound, RaceNotFound
+from .fastf1_data import FastF1NotInstalled, format_pace, get_driver_pace
 from .scout import Report, UnsupportedQuestion, answer
 
 app = typer.Typer(
@@ -63,6 +64,37 @@ def ask(question: str = typer.Argument(..., help="A question about F1.")) -> Non
 def driver(name: str = typer.Argument(..., help="A driver's name, e.g. Norris.")) -> None:
     """Shortcut for a driver's season-form report."""
     _run(f"How is {name} doing this season?")
+
+
+@app.command()
+def pace(
+    driver_name: str = typer.Argument(..., help="A driver's name, e.g. Leclerc."),
+    race: str = typer.Argument(..., help="A race, e.g. Monaco."),
+    season: int = typer.Option(DEFAULT_SEASON, help="Season year."),
+    kind: str = typer.Option("R", help="Session: R (race), Q (qualifying), S (sprint)."),
+) -> None:
+    """FastF1 deep data: a driver's pace and tyre strategy for a session.
+
+    No OpenAI key needed — this prints the raw timing data directly.
+    """
+    try:
+        d = f1_data.get_driver(driver_name, season)
+        # Resolve the race to a round number via Jolpica and pass the integer to
+        # FastF1 — its own name matching is unreliable when its schedule backend
+        # is degraded (it has mis-resolved "Monaco" to the Italian GP).
+        meta = f1_data.get_race_meta(race, season)
+        result = get_driver_pace(season, meta.round, d.code, kind=kind)
+    except (DriverNotFound, RaceNotFound, FastF1NotInstalled) as exc:
+        typer.secho(str(exc), fg=typer.colors.YELLOW, err=True)
+        raise typer.Exit(code=1)
+    except Exception as exc:  # FastF1 load / network — keep it clean
+        typer.secho(
+            f"Could not load FastF1 data for {race} {season}: {exc}",
+            fg=typer.colors.RED, err=True,
+        )
+        raise typer.Exit(code=1)
+    typer.echo(f"{d.full_name} — {meta.race_name} {season} ({kind})")
+    typer.echo(format_pace(result))
 
 
 def main() -> None:

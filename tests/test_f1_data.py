@@ -10,8 +10,10 @@ from scoutmini.f1_data import (
     RaceMeta,
     RaceNotFound,
     Standings,
+    get_driver,
     get_driver_season,
     get_race,
+    get_race_meta,
     get_standings,
     match_driver,
     match_race,
@@ -118,6 +120,12 @@ def test_get_driver_season_assembles_clean_object(fixture):
     assert any("results" in u for u in season.source_urls)
 
 
+def test_get_driver_resolves_to_code(fixture):
+    d = get_driver("Norris", 2024, fetch_json=lambda url: fixture("drivers_2024.json"))
+    assert d.driver_id == "norris"
+    assert d.code == "NOR"
+
+
 def test_get_standings_assembles_clean_object(fixture):
     standings = get_standings(
         2024, fetch_json=lambda url: fixture("driver_standings_2024.json")
@@ -205,6 +213,12 @@ def test_get_race_assembles(fixture):
 def test_get_race_unknown_race_raises(fixture):
     with pytest.raises(RaceNotFound):
         get_race("Imola", 2024, fetch_json=lambda u: fixture("schedule_2024.json"))
+
+
+def test_get_race_meta_resolves_round(fixture):
+    meta = get_race_meta("Monaco", 2024, fetch_json=lambda u: fixture("schedule_2024.json"))
+    assert meta.round == 8
+    assert meta.race_name == "Monaco Grand Prix"
 
 
 def test_get_driver_season_unknown_driver_raises(fixture):

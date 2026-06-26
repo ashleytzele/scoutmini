@@ -39,11 +39,23 @@ the LLM write a short report that cites only those numbers:
 - **Head-to-head** — `python -m scoutmini ask "Leclerc vs Norris this year"`
 - **Race analysis** — `python -m scoutmini ask "What decided the Monaco Grand Prix?"`
 
-Plus friendly errors for a missing API key, an unknown driver/race, or a
-not-yet-supported question type.
+Reports also cite **recent F1 news** (pulled from a free RSS feed) alongside the
+data sources. Plus friendly errors for a missing API key, an unknown driver/race,
+or a not-yet-supported question type.
 
-All four v1 question types are wired. News sources (RSS) and FastF1 deep data are
-the next steps (see the [design spec](docs/superpowers/specs/2026-06-27-scout-design.md)).
+### Deep timing data (FastF1)
+
+```bash
+pip install -e ".[fastf1]"          # optional, heavier dependency
+python -m scoutmini pace Leclerc Monaco --season 2024
+```
+
+`pace` prints a driver's fastest lap, median race pace, and tyre strategy for a
+session, straight from FastF1's official timing data (on-disk cached in
+`.ff1_cache/`). No OpenAI key needed — it's raw data, not an LLM report.
+
+The v2 stretch (an OpenAI function-calling agent) is the remaining item in the
+[design spec](docs/superpowers/specs/2026-06-27-scout-design.md).
 
 ## Development
 

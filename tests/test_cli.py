@@ -1,5 +1,7 @@
 import scoutmini.cli as cli
 from scoutmini.config import Config, ConfigError
+from scoutmini.f1_data import Driver
+from scoutmini.fastf1_data import DriverPace, Stint
 from scoutmini.scout import Intent, Report, UnsupportedQuestion
 from typer.testing import CliRunner
 
@@ -26,7 +28,7 @@ def test_ask_happy_path(monkeypatch):
     monkeypatch.setattr(
         cli,
         "answer",
-        lambda q, cfg: Report(q, Intent.DRIVER_FORM, "Strong season.", ["http://src"]),
+        lambda q, cfg, **kw: Report(q, Intent.DRIVER_FORM, "Strong season.", ["http://src"]),
     )
 
     result = runner.invoke(cli.app, ["ask", "How is Norris doing?"])
@@ -51,7 +53,7 @@ def test_ask_missing_key_is_friendly(monkeypatch):
 def test_ask_unsupported_question_is_friendly(monkeypatch):
     monkeypatch.setattr(cli, "load_config", lambda: CFG)
 
-    def boom(q, cfg):
+    def boom(q, cfg, **kw):
         raise UnsupportedQuestion("v1 only answers driver-form questions.")
 
     monkeypatch.setattr(cli, "answer", boom)
@@ -62,11 +64,30 @@ def test_ask_unsupported_question_is_friendly(monkeypatch):
     assert "driver-form" in result.output
 
 
+def test_pace_command(monkeypatch):
+    monkeypatch.setattr(
+        cli.f1_data, "get_driver",
+        lambda name, season: Driver("leclerc", "LEC", "Charles", "Leclerc"),
+    )
+    monkeypatch.setattr(
+        cli, "get_driver_pace",
+        lambda season, race, code, kind="R": DriverPace(
+            "LEC", 78.2, 79.0, 40, [Stint("SOFT", 20, 1, 20), Stint("HARD", 20, 21, 40)]
+        ),
+    )
+
+    result = runner.invoke(cli.app, ["pace", "Leclerc", "Monaco"])
+
+    assert result.exit_code == 0
+    assert "Charles Leclerc" in result.stdout
+    assert "SOFT" in result.stdout and "HARD" in result.stdout
+
+
 def test_driver_shortcut_builds_form_question(monkeypatch):
     monkeypatch.setattr(cli, "load_config", lambda: CFG)
     seen = {}
 
-    def fake_answer(q, cfg):
+    def fake_answer(q, cfg, **kw):
         seen["q"] = q
         return Report(q, Intent.DRIVER_FORM, "ok", [])
 

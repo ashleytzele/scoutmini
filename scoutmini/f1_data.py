@@ -341,6 +341,19 @@ def _default_fetch_json(url: str) -> dict:
     return resp.json()
 
 
+def get_driver(
+    query: str,
+    season: int,
+    *,
+    fetch_json: FetchJson = _default_fetch_json,
+) -> Driver:
+    """Resolve a free-text driver query to a :class:`Driver` for the season."""
+    drivers = parse_drivers(fetch_json(_url_drivers(season)))
+    if not drivers:
+        raise DataNotAvailable(f"No driver list available for the {season} season yet.")
+    return match_driver(query, drivers)
+
+
 def get_driver_season(
     query: str,
     season: int,
@@ -389,6 +402,19 @@ def get_standings(
     return Standings(season=season, drivers=drivers, source_urls=[url])
 
 
+def get_race_meta(
+    query: str,
+    season: int,
+    *,
+    fetch_json: FetchJson = _default_fetch_json,
+) -> RaceMeta:
+    """Resolve a free-text race query to its schedule entry (incl. round number)."""
+    schedule = parse_schedule(fetch_json(_url_schedule(season)))
+    if not schedule:
+        raise DataNotAvailable(f"No schedule available for the {season} season yet.")
+    return match_race(query, schedule)
+
+
 def get_race(
     query: str,
     season: int,
@@ -397,10 +423,7 @@ def get_race(
 ) -> RaceAnalysis:
     """Fetch a single race's full classification, resolving the race by name."""
     schedule_url = _url_schedule(season)
-    schedule = parse_schedule(fetch_json(schedule_url))
-    if not schedule:
-        raise DataNotAvailable(f"No schedule available for the {season} season yet.")
-    meta = match_race(query, schedule)
+    meta = get_race_meta(query, season, fetch_json=fetch_json)
 
     results_url = _url_race_results(season, meta.round)
     entries = parse_race_results(fetch_json(results_url))
