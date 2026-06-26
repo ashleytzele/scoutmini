@@ -1,0 +1,12 @@
+{
+  "MRData": {
+    "DriverTable": {
+      "season": "2024",
+      "Drivers": [
+        {"driverId": "norris", "permanentNumber": "4", "code": "NOR", "givenName": "Lando", "familyName": "Norris", "nationality": "British"},
+        {"driverId": "max_verstappen", "permanentNumber": "1", "code": "VER", "givenName": "Max", "familyName": "Verstappen", "nationality": "Dutch"},
+        {"driverId": "leclerc", "permanentNumber": "16", "code": "LEC", "givenName": "Charles", "familyName": "Leclerc", "nationality": "Monegasque"}
+      ]
+    }
+  }
+}

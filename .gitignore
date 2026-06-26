@@ -4,3 +4,5 @@ __pycache__/
 .venv/
 venv/
 .ff1_cache/
+.pytest_cache/
+*.egg-info/

@@ -1,0 +1,17 @@
+{
+  "MRData": {
+    "StandingsTable": {
+      "season": "2024",
+      "StandingsLists": [
+        {
+          "season": "2024",
+          "round": "24",
+          "DriverStandings": [
+            {"position": "1", "points": "437", "wins": "9", "Driver": {"driverId": "max_verstappen", "givenName": "Max", "familyName": "Verstappen"}, "Constructors": [{"name": "Red Bull"}]},
+            {"position": "2", "points": "374", "wins": "4", "Driver": {"driverId": "norris", "givenName": "Lando", "familyName": "Norris"}, "Constructors": [{"name": "McLaren"}]}
+          ]
+        }
+      ]
+    }
+  }
+}
