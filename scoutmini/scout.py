@@ -193,12 +193,13 @@ def format_race_analysis(race: f1_data.RaceAnalysis) -> str:
     return "\n".join(lines)
 
 
-def _generate(question, data_text, sources, config, client, analyze_fn):
-    if client is None:
-        client = llm.make_client(config)
-    return analyze_fn(
-        question, data_text, "\n".join(sources), model=config.model, client=client
-    )
+def format_news(items) -> str:
+    """Render recent headlines as a clearly-labelled context block."""
+    lines = ["Recent F1 news headlines (context — cite by title only if relevant):"]
+    for it in items:
+        when = f" ({it.published})" if it.published else ""
+        lines.append(f"  - {it.title}{when} — {it.link}")
+    return "\n".join(lines)
 
 
 def answer(
@@ -208,27 +209,39 @@ def answer(
     fetch_json=f1_data._default_fetch_json,
     client=None,
     analyze_fn=llm.analyze,
+    news_fn=None,
 ) -> Report:
     """Route the question, fetch the data it needs, and produce a sourced report.
 
-    ``fetch_json``, ``client``, and ``analyze_fn`` are injectable for testing.
+    ``fetch_json``, ``client``, ``analyze_fn``, and ``news_fn`` are injectable for
+    testing. ``news_fn`` (e.g. ``news.get_news``) is optional — when given, recent
+    headlines are appended to the data block and their links added to the sources.
     """
     routed = route(question)
 
+    def finish(data_text: str, sources, news_query):
+        sources = list(sources)
+        if news_fn is not None:
+            items = news_fn(news_query)
+            if items:
+                data_text = data_text + "\n\n" + format_news(items)
+                sources = list(dict.fromkeys(sources + [it.link for it in items if it.link]))
+        nonlocal client
+        if client is None:
+            client = llm.make_client(config)
+        body = analyze_fn(
+            question, data_text, "\n".join(sources), model=config.model, client=client
+        )
+        return Report(question, routed.intent, body, sources)
+
     if routed.intent is Intent.DRIVER_FORM:
         subject = routed.subjects[0] if routed.subjects else question
-        season = f1_data.get_driver_season(
-            subject, config.season, fetch_json=fetch_json
-        )
-        body = _generate(question, format_driver_season(season), season.source_urls,
-                         config, client, analyze_fn)
-        return Report(question, routed.intent, body, season.source_urls)
+        season = f1_data.get_driver_season(subject, config.season, fetch_json=fetch_json)
+        return finish(format_driver_season(season), season.source_urls, season.driver.full_name)
 
     if routed.intent is Intent.STANDINGS:
         standings = f1_data.get_standings(config.season, fetch_json=fetch_json)
-        body = _generate(question, format_standings(standings), standings.source_urls,
-                         config, client, analyze_fn)
-        return Report(question, routed.intent, body, standings.source_urls)
+        return finish(format_standings(standings), standings.source_urls, None)
 
     if routed.intent is Intent.HEAD_TO_HEAD:
         if len(routed.subjects) < 2:
@@ -238,21 +251,15 @@ def answer(
         a = f1_data.get_driver_season(routed.subjects[0], config.season, fetch_json=fetch_json)
         b = f1_data.get_driver_season(routed.subjects[1], config.season, fetch_json=fetch_json)
         sources = list(dict.fromkeys(a.source_urls + b.source_urls))  # dedup, keep order
-        body = _generate(question, format_head_to_head(a, b), sources,
-                         config, client, analyze_fn)
-        return Report(question, routed.intent, body, sources)
+        return finish(format_head_to_head(a, b), sources, a.driver.full_name)
 
     if routed.intent is Intent.RACE_ANALYSIS:
         if not routed.subjects:
             raise UnsupportedQuestion(
                 "Which race? Name it, e.g. \"What decided the Monaco Grand Prix?\"."
             )
-        race = f1_data.get_race(
-            " ".join(routed.subjects), config.season, fetch_json=fetch_json
-        )
-        body = _generate(question, format_race_analysis(race), race.source_urls,
-                         config, client, analyze_fn)
-        return Report(question, routed.intent, body, race.source_urls)
+        race = f1_data.get_race(" ".join(routed.subjects), config.season, fetch_json=fetch_json)
+        return finish(format_race_analysis(race), race.source_urls, race.meta.race_name)
 
     raise UnsupportedQuestion(
         f"ScoutMini can't answer that kind of question yet ('{routed.intent.value}'). "

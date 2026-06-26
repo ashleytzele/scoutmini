@@ -22,6 +22,8 @@ from scoutmini.scout import (
     format_standings,
 )
 
+from scoutmini.news import NewsItem
+
 CFG = Config(openai_api_key="sk-test", model="gpt-4o-mini", season=2024)
 
 
@@ -74,6 +76,36 @@ def test_answer_driver_form_end_to_end(fixture):
     assert report.sources  # carried through for display
     assert "374" in captured["data_text"]
     assert captured["model"] == "gpt-4o-mini"
+
+
+def test_answer_attaches_news_when_news_fn_given(fixture):
+    captured = {}
+    news = [NewsItem("Norris signs new deal", "http://news/norris", "today", "...")]
+
+    report = answer(
+        "How is Norris doing this season?",
+        CFG,
+        fetch_json=_multi_fetcher(fixture),
+        client=object(),
+        analyze_fn=_capturing_analyze(captured, "ok"),
+        news_fn=lambda query: news,
+    )
+
+    # headline reaches the LLM data block and the link is cited as a source
+    assert "Norris signs new deal" in captured["data_text"]
+    assert "http://news/norris" in report.sources
+
+
+def test_answer_without_news_fn_has_no_news(fixture):
+    captured = {}
+    answer(
+        "How is Norris doing this season?",
+        CFG,
+        fetch_json=_multi_fetcher(fixture),
+        client=object(),
+        analyze_fn=_capturing_analyze(captured, "ok"),
+    )
+    assert "news" not in captured["data_text"].lower()
 
 
 def _multi_fetcher(fixture):

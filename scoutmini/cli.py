@@ -12,6 +12,7 @@ from __future__ import annotations
 import requests
 import typer
 
+from . import news
 from .config import ConfigError, load_config
 from .f1_data import DataNotAvailable, DriverNotFound
 from .scout import Report, UnsupportedQuestion, answer
@@ -38,7 +39,7 @@ def _run(question: str) -> None:
         raise typer.Exit(code=1)
 
     try:
-        report = answer(question, config)
+        report = answer(question, config, news_fn=news.get_news)
     except (DriverNotFound, DataNotAvailable, UnsupportedQuestion) as exc:
         typer.secho(str(exc), fg=typer.colors.YELLOW, err=True)
         raise typer.Exit(code=1)
