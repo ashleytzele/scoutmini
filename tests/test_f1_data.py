@@ -5,13 +5,21 @@ from scoutmini.f1_data import (
     Driver,
     DriverNotFound,
     DriverSeason,
+    RaceAnalysis,
+    RaceEntry,
+    RaceMeta,
+    RaceNotFound,
     Standings,
     get_driver_season,
+    get_race,
     get_standings,
     match_driver,
+    match_race,
     parse_driver_results,
     parse_driver_standings,
     parse_drivers,
+    parse_race_results,
+    parse_schedule,
 )
 
 
@@ -125,6 +133,78 @@ def test_get_standings_assembles_clean_object(fixture):
 def test_get_standings_no_data_raises(fixture):
     with pytest.raises(DataNotAvailable):
         get_standings(1066, fetch_json=lambda url: {"MRData": {"StandingsTable": {"StandingsLists": []}}})
+
+
+# --- race analysis ----------------------------------------------------------
+
+def test_parse_schedule(fixture):
+    races = parse_schedule(fixture("schedule_2024.json"))
+    assert len(races) == 2
+    monaco = races[1]
+    assert isinstance(monaco, RaceMeta)
+    assert monaco.round == 8
+    assert monaco.race_name == "Monaco Grand Prix"
+    assert monaco.country == "Monaco"
+
+
+def test_match_race_by_name(fixture):
+    races = parse_schedule(fixture("schedule_2024.json"))
+    assert match_race("Monaco", races).round == 8
+    assert match_race("monaco grand prix", races).round == 8
+
+
+def test_match_race_by_country(fixture):
+    races = parse_schedule(fixture("schedule_2024.json"))
+    assert match_race("Bahrain", races).round == 1
+
+
+def test_match_race_unknown_raises(fixture):
+    races = parse_schedule(fixture("schedule_2024.json"))
+    with pytest.raises(RaceNotFound) as exc:
+        match_race("Nürburgring", races)
+    assert "Monaco" in str(exc.value) or "Bahrain" in str(exc.value)
+
+
+def test_parse_race_results_full_field(fixture):
+    entries = parse_race_results(fixture("race_monaco_2024.json"))
+    assert len(entries) == 6
+    winner = entries[0]
+    assert isinstance(winner, RaceEntry)
+    assert winner.position == 1
+    assert winner.full_name == "Charles Leclerc"
+    assert winner.grid == 1
+    assert winner.constructor == "Ferrari"
+    dnf = entries[-1]
+    assert dnf.status == "Accident"
+
+
+def test_race_entry_classification_uses_position_text(fixture):
+    by_name = {e.full_name: e for e in parse_race_results(fixture("race_monaco_2024.json"))}
+    # A "Lapped" driver still finished the race -> classified.
+    assert by_name["Yuki Tsunoda"].status == "Lapped"
+    assert by_name["Yuki Tsunoda"].is_classified is True
+    # A retirement (positionText "R") is NOT classified.
+    assert by_name["Sergio Perez"].is_classified is False
+
+
+def test_get_race_assembles(fixture):
+    def fetch_json(url):
+        if url.endswith("/2024.json"):
+            return fixture("schedule_2024.json")
+        if "/8/results" in url:
+            return fixture("race_monaco_2024.json")
+        raise AssertionError(f"unexpected url: {url}")
+
+    race = get_race("Monaco", 2024, fetch_json=fetch_json)
+    assert isinstance(race, RaceAnalysis)
+    assert race.meta.race_name == "Monaco Grand Prix"
+    assert len(race.entries) == 6
+    assert race.source_urls
+
+
+def test_get_race_unknown_race_raises(fixture):
+    with pytest.raises(RaceNotFound):
+        get_race("Imola", 2024, fetch_json=lambda u: fixture("schedule_2024.json"))
 
 
 def test_get_driver_season_unknown_driver_raises(fixture):

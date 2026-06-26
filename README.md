@@ -37,12 +37,13 @@ the LLM write a short report that cites only those numbers:
 - **Driver form** — `python -m scoutmini ask "How is Norris doing this season?"`
 - **Standings** — `python -m scoutmini ask "Show the driver standings"`
 - **Head-to-head** — `python -m scoutmini ask "Leclerc vs Norris this year"`
+- **Race analysis** — `python -m scoutmini ask "What decided the Monaco Grand Prix?"`
 
-Plus friendly errors for a missing API key, an unknown driver, or a not-yet-supported
-question type.
+Plus friendly errors for a missing API key, an unknown driver/race, or a
+not-yet-supported question type.
 
-Race analysis, news sources, and FastF1 deep data are the next steps (see the
-[design spec](docs/superpowers/specs/2026-06-27-scout-design.md)).
+All four v1 question types are wired. News sources (RSS) and FastF1 deep data are
+the next steps (see the [design spec](docs/superpowers/specs/2026-06-27-scout-design.md)).
 
 ## Development
 

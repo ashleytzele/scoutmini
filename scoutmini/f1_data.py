@@ -37,6 +37,10 @@ class DataNotAvailable(Exception):
     """The data we need does not exist yet (e.g. a season with no results)."""
 
 
+class RaceNotFound(Exception):
+    """The requested race could not be matched in the season schedule."""
+
+
 # --- data shapes ------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -70,6 +74,48 @@ class RaceResult:
     position: int
     points: float
     status: str
+
+
+@dataclass(frozen=True)
+class RaceMeta:
+    round: int
+    race_name: str
+    circuit_name: str
+    locality: str
+    country: str
+    date: str
+
+
+@dataclass(frozen=True)
+class RaceEntry:
+    position: int
+    full_name: str
+    code: str
+    constructor: str
+    grid: int
+    points: float
+    status: str
+    position_text: str = ""
+
+    @property
+    def places_gained(self) -> int:
+        """Positive = moved up from grid to finish (DNFs ignored by caller)."""
+        return self.grid - self.position
+
+    @property
+    def is_classified(self) -> bool:
+        """Did the driver finish/get classified? Ergast uses a numeric
+        ``positionText`` for the classified field and a letter (R, D, W, …) for
+        retirements — this is more reliable than the free-text ``status``
+        (e.g. "Lapped" still means the driver finished)."""
+        return self.position_text.isdigit()
+
+
+@dataclass(frozen=True)
+class RaceAnalysis:
+    meta: RaceMeta
+    entries: List[RaceEntry]
+    source_urls: List[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -171,6 +217,48 @@ def parse_driver_results(payload: dict) -> List[RaceResult]:
     return out
 
 
+def parse_schedule(payload: dict) -> List[RaceMeta]:
+    races = payload.get("MRData", {}).get("RaceTable", {}).get("Races", [])
+    out: List[RaceMeta] = []
+    for race in races:
+        circuit = race.get("Circuit", {})
+        location = circuit.get("Location", {})
+        out.append(
+            RaceMeta(
+                round=_to_int(race.get("round")),
+                race_name=race.get("raceName", ""),
+                circuit_name=circuit.get("circuitName", ""),
+                locality=location.get("locality", ""),
+                country=location.get("country", ""),
+                date=race.get("date", ""),
+            )
+        )
+    return out
+
+
+def parse_race_results(payload: dict) -> List[RaceEntry]:
+    races = payload.get("MRData", {}).get("RaceTable", {}).get("Races", [])
+    if not races:
+        return []
+    out: List[RaceEntry] = []
+    for res in races[0].get("Results", []):
+        driver = res.get("Driver", {})
+        constructor = res.get("Constructor", {})
+        out.append(
+            RaceEntry(
+                position=_to_int(res.get("position")),
+                full_name=f"{driver.get('givenName', '')} {driver.get('familyName', '')}".strip(),
+                code=driver.get("code", ""),
+                constructor=constructor.get("name", ""),
+                grid=_to_int(res.get("grid")),
+                points=_to_float(res.get("points")),
+                status=res.get("status", ""),
+                position_text=str(res.get("positionText", res.get("position", ""))),
+            )
+        )
+    return out
+
+
 # --- matchers ---------------------------------------------------------------
 
 def match_driver(query: str, drivers: List[Driver]) -> Driver:
@@ -201,6 +289,28 @@ def match_driver(query: str, drivers: List[Driver]) -> Driver:
     )
 
 
+def match_race(query: str, races: List[RaceMeta]) -> RaceMeta:
+    """Resolve a free-text race query against the season schedule.
+
+    Matches (case-insensitively) on race name, circuit, locality, or country.
+    Raises :class:`RaceNotFound` with suggestions otherwise.
+    """
+    q = query.strip().lower()
+    if q:
+        for race in races:
+            haystack = " ".join(
+                [race.race_name, race.circuit_name, race.locality, race.country]
+            ).lower()
+            if q in haystack:
+                return race
+
+    suggestions = ", ".join(r.race_name for r in races[:8])
+    raise RaceNotFound(
+        f"Could not find a race matching {query!r}. "
+        f"Some races this season: {suggestions}."
+    )
+
+
 # --- URLs -------------------------------------------------------------------
 
 def _url_drivers(season: int) -> str:
@@ -213,6 +323,14 @@ def _url_driver_results(driver_id: str, season: int) -> str:
 
 def _url_driver_standings(season: int) -> str:
     return f"{BASE_URL}/{season}/driverStandings.json"
+
+
+def _url_schedule(season: int) -> str:
+    return f"{BASE_URL}/{season}.json"
+
+
+def _url_race_results(season: int, rnd: int) -> str:
+    return f"{BASE_URL}/{season}/{rnd}/results.json"
 
 
 # --- live fetch -------------------------------------------------------------
@@ -269,3 +387,25 @@ def get_standings(
             f"No championship standings available for the {season} season yet."
         )
     return Standings(season=season, drivers=drivers, source_urls=[url])
+
+
+def get_race(
+    query: str,
+    season: int,
+    *,
+    fetch_json: FetchJson = _default_fetch_json,
+) -> RaceAnalysis:
+    """Fetch a single race's full classification, resolving the race by name."""
+    schedule_url = _url_schedule(season)
+    schedule = parse_schedule(fetch_json(schedule_url))
+    if not schedule:
+        raise DataNotAvailable(f"No schedule available for the {season} season yet.")
+    meta = match_race(query, schedule)
+
+    results_url = _url_race_results(season, meta.round)
+    entries = parse_race_results(fetch_json(results_url))
+    if not entries:
+        raise DataNotAvailable(
+            f"No results available for the {meta.race_name} yet."
+        )
+    return RaceAnalysis(meta=meta, entries=entries, source_urls=[results_url, schedule_url])

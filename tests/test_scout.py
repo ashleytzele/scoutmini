@@ -5,6 +5,9 @@ from scoutmini.f1_data import (
     Driver,
     DriverSeason,
     DriverStanding,
+    RaceAnalysis,
+    RaceEntry,
+    RaceMeta,
     RaceResult,
     Standings,
 )
@@ -15,6 +18,7 @@ from scoutmini.scout import (
     answer,
     format_driver_season,
     format_head_to_head,
+    format_race_analysis,
     format_standings,
 )
 
@@ -83,6 +87,10 @@ def _multi_fetcher(fixture):
             return fixture("leclerc_results_2024.json")
         if "/norris/" in url:
             return fixture("norris_results_2024.json")
+        if url.endswith("/2024.json"):
+            return fixture("schedule_2024.json")
+        if "/8/results" in url:
+            return fixture("race_monaco_2024.json")
         raise AssertionError(f"unexpected url: {url}")
 
     return fetch_json
@@ -172,10 +180,40 @@ def test_answer_head_to_head_needs_two_drivers(fixture):
         )
 
 
-# --- still-unsupported intent ----------------------------------------------
+# --- race analysis ----------------------------------------------------------
 
-def test_answer_race_analysis_still_unsupported(fixture):
-    with pytest.raises(UnsupportedQuestion) as exc:
-        answer("What decided the Monaco Grand Prix?", CFG, fetch_json=lambda u: {},
-               client=object(), analyze_fn=lambda *a, **k: "x")
-    assert "race" in str(exc.value).lower() or "v1" in str(exc.value).lower()
+def _sample_race():
+    meta = RaceMeta(8, "Monaco Grand Prix", "Circuit de Monaco", "Monte-Carlo", "Monaco", "2024-05-26")
+    entries = [
+        RaceEntry(1, "Charles Leclerc", "LEC", "Ferrari", 1, 25.0, "Finished", "1"),
+        RaceEntry(2, "Oscar Piastri", "PIA", "McLaren", 3, 18.0, "Finished", "2"),
+        RaceEntry(3, "Carlos Sainz", "SAI", "Ferrari", 2, 15.0, "Finished", "3"),
+        RaceEntry(15, "Yuki Tsunoda", "TSU", "RB F1 Team", 14, 0.0, "Lapped", "15"),
+        RaceEntry(18, "Sergio Perez", "PER", "Red Bull", 11, 0.0, "Accident", "R"),
+    ]
+    return RaceAnalysis(meta, entries, ["http://src/race"])
+
+
+def test_format_race_analysis_highlights_key_facts():
+    text = format_race_analysis(_sample_race())
+    assert "Monaco Grand Prix" in text
+    assert "Charles Leclerc" in text     # winner
+    # The retirement is flagged as DNF; the lapped finisher is NOT.
+    dnf_line = next(l for l in text.splitlines() if l.startswith("Did not finish"))
+    assert "Sergio Perez" in dnf_line
+    assert "Yuki Tsunoda" not in dnf_line
+
+
+def test_answer_race_analysis_end_to_end(fixture):
+    captured = {}
+    report = answer(
+        "What decided the Monaco Grand Prix?",
+        CFG,
+        fetch_json=_multi_fetcher(fixture),
+        client=object(),
+        analyze_fn=_capturing_analyze(captured, "Leclerc controlled it from pole."),
+    )
+    assert report.intent is Intent.RACE_ANALYSIS
+    assert report.body == "Leclerc controlled it from pole."
+    assert "Leclerc" in captured["data_text"]
+    assert report.sources

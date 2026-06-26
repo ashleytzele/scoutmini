@@ -1,0 +1,11 @@
+{
+  "MRData": {
+    "RaceTable": {
+      "season": "2024",
+      "Races": [
+        {"round": "1", "raceName": "Bahrain Grand Prix", "date": "2024-03-02", "Circuit": {"circuitName": "Bahrain International Circuit", "Location": {"locality": "Sakhir", "country": "Bahrain"}}},
+        {"round": "8", "raceName": "Monaco Grand Prix", "date": "2024-05-26", "Circuit": {"circuitName": "Circuit de Monaco", "Location": {"locality": "Monte-Carlo", "country": "Monaco"}}}
+      ]
+    }
+  }
+}

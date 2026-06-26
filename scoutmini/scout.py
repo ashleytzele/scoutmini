@@ -153,6 +153,46 @@ def format_head_to_head(a: f1_data.DriverSeason, b: f1_data.DriverSeason) -> str
     return "\n".join(lines)
 
 
+def _is_finisher(entry: f1_data.RaceEntry) -> bool:
+    return entry.is_classified
+
+
+def format_race_analysis(race: f1_data.RaceAnalysis) -> str:
+    """Render a single race's classification + a few computed highlights."""
+    m = race.meta
+    lines = [
+        f"{m.race_name} ({m.country}), round {m.round}, {m.date} — {m.circuit_name}",
+        "",
+    ]
+
+    finishers = [e for e in race.entries if _is_finisher(e)]
+    pole = next((e for e in race.entries if e.grid == 1), None)
+    if pole:
+        lines.append(f"Pole (started P1): {pole.full_name} ({pole.constructor})")
+    if finishers:
+        mover = max(finishers, key=lambda e: e.places_gained)
+        if mover.places_gained > 0:
+            lines.append(
+                f"Biggest climber: {mover.full_name} "
+                f"P{mover.grid} -> P{mover.position} (+{mover.places_gained})"
+            )
+    dnfs = [e for e in race.entries if not _is_finisher(e)]
+    if dnfs:
+        lines.append(
+            "Did not finish: "
+            + ", ".join(f"{e.full_name} ({e.status})" for e in dnfs)
+        )
+
+    lines.append("")
+    lines.append("Full classification (finish | driver | team | grid | status):")
+    for e in race.entries:
+        lines.append(
+            f"  P{e.position:>2} | {e.full_name} | {e.constructor} "
+            f"| started P{e.grid} | {e.status}"
+        )
+    return "\n".join(lines)
+
+
 def _generate(question, data_text, sources, config, client, analyze_fn):
     if client is None:
         client = llm.make_client(config)
@@ -202,9 +242,20 @@ def answer(
                          config, client, analyze_fn)
         return Report(question, routed.intent, body, sources)
 
+    if routed.intent is Intent.RACE_ANALYSIS:
+        if not routed.subjects:
+            raise UnsupportedQuestion(
+                "Which race? Name it, e.g. \"What decided the Monaco Grand Prix?\"."
+            )
+        race = f1_data.get_race(
+            " ".join(routed.subjects), config.season, fetch_json=fetch_json
+        )
+        body = _generate(question, format_race_analysis(race), race.source_urls,
+                         config, client, analyze_fn)
+        return Report(question, routed.intent, body, race.source_urls)
+
     raise UnsupportedQuestion(
-        f"That looks like a '{routed.intent.value}' question. ScoutMini doesn't "
-        "answer race-analysis questions yet — that's the next thing on the list. "
+        f"ScoutMini can't answer that kind of question yet ('{routed.intent.value}'). "
         "Try driver form (\"How is Norris doing?\"), a head-to-head "
-        "(\"Leclerc vs Norris\"), or standings (\"show the standings\")."
+        "(\"Leclerc vs Norris\"), standings, or a race (\"what decided Monaco?\")."
     )
