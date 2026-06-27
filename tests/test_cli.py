@@ -1,4 +1,5 @@
 import scoutmini.cli as cli
+from scoutmini.agent import AgentResult
 from scoutmini.config import Config, ConfigError
 from scoutmini.f1_data import Driver
 from scoutmini.fastf1_data import DriverPace, Stint
@@ -62,6 +63,26 @@ def test_ask_unsupported_question_is_friendly(monkeypatch):
 
     assert result.exit_code == 1
     assert "driver-form" in result.output
+
+
+def test_agent_command(monkeypatch):
+    monkeypatch.setattr(cli, "load_config", lambda: CFG)
+    monkeypatch.setattr(
+        cli, "run_agent",
+        lambda q, cfg: AgentResult(
+            answer="Verstappen leads.",
+            sources=["http://src/standings"],
+            steps=2,
+            tool_calls=["get_standings"],
+        ),
+    )
+
+    result = runner.invoke(cli.app, ["agent", "Who is winning?"])
+
+    assert result.exit_code == 0
+    assert "Verstappen leads." in result.stdout
+    assert "get_standings" in result.stdout      # tools-used line
+    assert "http://src/standings" in result.stdout
 
 
 def test_pace_command(monkeypatch):

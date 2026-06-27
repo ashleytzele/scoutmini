@@ -13,6 +13,7 @@ import requests
 import typer
 
 from . import f1_data, news
+from .agent import run_agent
 from .config import DEFAULT_SEASON, ConfigError, load_config
 from .f1_data import DataNotAvailable, DriverNotFound, RaceNotFound
 from .fastf1_data import FastF1NotInstalled, format_pace, get_driver_pace
@@ -64,6 +65,37 @@ def ask(question: str = typer.Argument(..., help="A question about F1.")) -> Non
 def driver(name: str = typer.Argument(..., help="A driver's name, e.g. Norris.")) -> None:
     """Shortcut for a driver's season-form report."""
     _run(f"How is {name} doing this season?")
+
+
+@app.command()
+def agent(question: str = typer.Argument(..., help="Any F1 question.")) -> None:
+    """v2: let the model choose which data tools to call, across multiple steps.
+
+    Unlike `ask` (a fixed router), this can combine tools to answer open-ended
+    questions. Still grounded only in fetched data, with sources shown.
+    """
+    try:
+        config = load_config()
+    except ConfigError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+    try:
+        result = run_agent(question, config)
+    except requests.exceptions.RequestException as exc:
+        typer.secho(f"Could not reach the F1 data service: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    except Exception as exc:  # OpenAI / unexpected — surface cleanly
+        typer.secho(f"Something went wrong: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(result.answer.strip())
+    if result.tool_calls:
+        typer.secho(f"\n[tools used: {', '.join(result.tool_calls)}]", fg=typer.colors.CYAN)
+    if result.sources:
+        typer.echo("\nSources:")
+        for url in result.sources:
+            typer.echo(f"  - {url}")
 
 
 @app.command()

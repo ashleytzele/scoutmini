@@ -43,6 +43,19 @@ Reports also cite **recent F1 news** (pulled from a free RSS feed) alongside the
 data sources. Plus friendly errors for a missing API key, an unknown driver/race,
 or a not-yet-supported question type.
 
+### v2 — the function-calling agent
+
+```bash
+python -m scoutmini agent "Who won at Monaco, and how is that driver doing overall?"
+```
+
+`agent` hands the F1 data functions to the model as **tools** and lets it decide
+which to call, across multiple steps — so it can combine data to answer
+open-ended questions that the fixed `ask` router can't. It still obeys the golden
+rule (it only ever sees data the tools return) and prints the tools it used plus
+the sources. `ask` (the deterministic v1 router) remains for simple, predictable
+queries.
+
 ### Deep timing data (FastF1)
 
 ```bash
@@ -54,8 +67,9 @@ python -m scoutmini pace Leclerc Monaco --season 2024
 session, straight from FastF1's official timing data (on-disk cached in
 `.ff1_cache/`). No OpenAI key needed — it's raw data, not an LLM report.
 
-The v2 stretch (an OpenAI function-calling agent) is the remaining item in the
-[design spec](docs/superpowers/specs/2026-06-27-scout-design.md).
+The v2 function-calling agent (above) is now built too. The remaining stretch
+from the [design spec](docs/superpowers/specs/2026-06-27-scout-design.md) is a
+second sport adapter ("one engine, many sports").
 
 ## Development
 
