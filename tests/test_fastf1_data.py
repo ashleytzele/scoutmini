@@ -1,5 +1,7 @@
-import pandas as pd
 import pytest
+
+# fastf1/pandas is an optional extra; skip this module when it is absent
+pd = pytest.importorskip("pandas")
 
 from scoutmini.fastf1_data import (
     DriverPace,
