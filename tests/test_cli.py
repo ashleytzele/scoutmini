@@ -1,7 +1,7 @@
 import scoutmini.cli as cli
 from scoutmini.agent import AgentResult
 from scoutmini.config import Config, ConfigError
-from scoutmini.f1_data import Driver
+from scoutmini.f1_data import Driver, RaceMeta
 from scoutmini.fastf1_data import DriverPace, Stint
 from scoutmini.scout import Intent, Report, UnsupportedQuestion
 from typer.testing import CliRunner
@@ -89,6 +89,15 @@ def test_pace_command(monkeypatch):
     monkeypatch.setattr(
         cli.f1_data, "get_driver",
         lambda name, season: Driver("leclerc", "LEC", "Charles", "Leclerc"),
+    )
+    # get_race_meta was previously unpatched, so this test made a live call to
+    # the Jolpica API on every run: slow, flaky, and failing with no network.
+    monkeypatch.setattr(
+        cli.f1_data, "get_race_meta",
+        lambda race, season: RaceMeta(
+            round=6, race_name="Monaco Grand Prix", circuit_name="Circuit de Monaco",
+            locality="Monte-Carlo", country="Monaco", date="2024-05-26",
+        ),
     )
     monkeypatch.setattr(
         cli, "get_driver_pace",
