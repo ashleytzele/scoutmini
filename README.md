@@ -18,7 +18,9 @@ python -m scoutmini agent "Who won at Monaco, and how is that driver doing overa
 python -m scoutmini pace  Leclerc Monaco --season 2024
 ```
 
-**67 tests, no network required** — every external call is fixtured.
+**73 tests, no network required** — every external call is fixtured. Six of them
+cover the FastF1 path and skip unless the optional extra is installed, so a plain
+`pip install -e ".[dev]"` runs 67 of the 73.
 
 ## Quick start
 
@@ -28,7 +30,7 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 
 cp .env.example .env   # then add your OpenAI API key
-pytest                 # 67 passed, 1 skipped
+pytest                 # 67 passed, 6 skipped (the FastF1 tests)
 ```
 
 Run it from the project root with the module entry point (works everywhere):
